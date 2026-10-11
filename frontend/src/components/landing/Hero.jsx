@@ -68,7 +68,7 @@ export default function Hero({ onChooseRole }) {
         >
           {photoOk && (
             <img
-              src="/images/hero.jpg"
+              src="/images/KaamGar_Logo.png"
               alt="Hands holding a power drill during a repair job"
               className="absolute inset-0 size-full object-cover"
               onError={() => setPhotoOk(false)}
