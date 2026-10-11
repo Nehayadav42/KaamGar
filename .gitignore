@@ -1,0 +1,24 @@
+
+# Dependencies
+**/node_modules/
+
+# Build output
+**/dist/
+**/build/
+
+# Environment variables and secrets
+**/.env
+**/.env.*
+
+# Keep example environment files
+!**/.env.example
+
+# Logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/pnpm-debug.log*
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
