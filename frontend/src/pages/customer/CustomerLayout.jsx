@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import Logo from '../../components/ui/Logo'
 
 const tabs = [
@@ -7,11 +7,8 @@ const tabs = [
   { to: '/customer/bookings', label: 'My bookings', end: false },
 ]
 
-// Shell for the customer area: top bar, tabs, and animated page transitions.
 export default function CustomerLayout() {
-  const location = useLocation()
-  // Booking steps and booking detail keep the "Services" / "My bookings" context
-  const key = location.pathname
+  const { pathname } = useLocation()
 
   return (
     <div className="min-h-screen bg-page text-ink">
@@ -29,6 +26,7 @@ export default function CustomerLayout() {
             Account
           </Link>
         </div>
+
         <div className="border-y border-line/80">
           <div className="mx-auto flex max-w-[1240px] items-center justify-between px-5 sm:px-[60px]">
             <nav className="flex gap-7" aria-label="Customer">
@@ -38,7 +36,9 @@ export default function CustomerLayout() {
                   to={t.to}
                   end={t.end}
                   className={({ isActive }) =>
-                    `relative py-4 text-[13px] transition-colors ${isActive ? 'font-medium text-ink' : 'text-muted hover:text-ink'}`
+                    `relative py-4 text-[13px] transition-colors ${
+                      isActive ? 'font-medium text-ink' : 'text-muted hover:text-ink'
+                    }`
                   }
                 >
                   {({ isActive }) => (
@@ -60,20 +60,18 @@ export default function CustomerLayout() {
         </div>
       </header>
 
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.main
-          key={key}
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="mx-auto max-w-[1240px] px-5 pb-32 pt-14 sm:px-[60px] sm:pt-[72px]"
-        >
-          <div className="mx-auto max-w-[912px]">
-            <Outlet />
-          </div>
-        </motion.main>
-      </AnimatePresence>
+      {/* Fades in on every route change. No exit animation, so it can't get stuck. */}
+      <motion.main
+        key={pathname}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="mx-auto max-w-[1240px] px-5 pb-32 pt-14 sm:px-[60px] sm:pt-[72px]"
+      >
+        <div className="mx-auto max-w-[912px]">
+          <Outlet />
+        </div>
+      </motion.main>
     </div>
   )
 }
