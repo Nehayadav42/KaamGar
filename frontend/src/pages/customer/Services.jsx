@@ -4,14 +4,17 @@ import { useNavigate } from 'react-router-dom'
 import PageHeading from './PageHeading'
 import Button from '../../components/ui/Button'
 import { services } from '../../data/content'
+import { useCatalogue } from '../../context/CatalogueContext'
+
 
 const ease = [0.22, 1, 0.36, 1]
 
 export default function Services() {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState(services[0].id)
+const { activeServices: services } = useCatalogue()
+const [selected, setSelected] = useState(services[0]?.id ?? null)
 
-  const next = () => navigate('/customer/book', { state: { serviceId: selected } })
+const next = () => selected && navigate('/customer/book', { state: { serviceId: selected } })
 
   return (
     <>

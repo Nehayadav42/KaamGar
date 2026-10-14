@@ -3,7 +3,7 @@
 export const roles = [
   { id: 'customer', name: 'Customer', desc: 'Book a trusted local service.', to: '/customer' },
   { id: 'worker', name: 'Worker', desc: 'Get jobs, submit work, build your Work Passport.', to: '/worker' },
-  { id: 'owner', name: 'Cooperative Owner', desc: 'Manage workers, bookings and reviews.', to: '/owner' },
+  { id: 'owner', name: 'Cooperative Owner', desc: 'Manage workers, bookings and reviews.', to: '/admin' },
 ]
 
 export const steps = [
