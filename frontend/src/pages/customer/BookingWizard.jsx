@@ -4,7 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PageHeading from './PageHeading'
 import Button from '../../components/ui/Button'
 import { makeBooking, useBookings } from '../../context/BookingsContext'
-import { services } from '../../data/content'
+import { useCatalogue } from '../../context/CatalogueContext'
 
 const ease = [0.22, 1, 0.36, 1]
 const TOTAL = 5
@@ -32,8 +32,10 @@ export default function BookingWizard() {
   const { state } = useLocation()
   const navigate = useNavigate()
   const { addBooking } = useBookings()
+  const { services } = useCatalogue()
 
-  const service = useMemo(() => services.find((s) => s.id === state?.serviceId), [state])
+
+  const service = useMemo(() => services.find((s) => s.id === state?.serviceId), [state, services])
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [errors, setErrors] = useState({})
