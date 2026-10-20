@@ -1,17 +1,34 @@
+
 import { ApiError } from '../utils/ApiError.js'
 
-// validate({ body: schema, params: schema, query: schema })
-// Unknown fields are rejected (the schemas are .strict()), which blocks mass-assignment attacks
-// such as sending {"role": "platform_admin"} during sign up.
+// Validate request params, query, and body.
+// Reject unknown fields when schemas are strict.
 export const validate = (schemas) => (req, _res, next) => {
   for (const part of ['params', 'query', 'body']) {
     if (!schemas[part]) continue
+
     const result = schemas[part].safeParse(req[part] ?? {})
+
     if (!result.success) {
-      const details = result.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message }))
+      const details = result.error.issues.map((i) => ({
+        field: i.path.join('.'),
+        message: i.message,
+      }))
+
       return next(ApiError.badRequest('Validation failed', details))
     }
-    req[part] = result.data
+
+    if (part === 'query') {
+      Object.defineProperty(req, 'query', {
+        value: result.data,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      })
+    } else {
+      req[part] = result.data
+    }
   }
+
   next()
 }
