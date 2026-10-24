@@ -1,30 +1,35 @@
 {
-  "name": "backend",
+  "name": "kaamgar-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/server.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
+  "description": "KaamGar backend: PostgreSQL, authentication, role-based access control and cooperative management",
   "type": "module",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/scripts/seed.js",
+    "setup": "npm run migrate && npm run seed",
+    "seed:demo": "node src/scripts/seedDemo.js"
+  },
   "dependencies": {
-    "bcryptjs": "^3.0.3",
+    "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.8",
-    "express": "^5.3.0",
-    "express-rate-limit": "^8.7.1",
-    "helmet": "^8.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
     "hpp": "^0.2.3",
-    "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.12.1",
-    "nodemon": "^3.1.14",
-    "pg": "^8.23.1",
-    "zod": "^4.6.7"
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
   }
 }

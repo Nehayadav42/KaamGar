@@ -16,3 +16,13 @@ export const USER_STATUS = Object.freeze({
   PENDING: 'pending', // new workers wait for their cooperative to approve them
   SUSPENDED: 'suspended',
 })
+
+export const BOOKING_STATUSES = [
+  'PENDING',
+  'ASSIGNED',
+  'ACCEPTED',
+  'IN_PROGRESS',
+  'EVIDENCE_SUBMITTED',
+  'COMPLETED',
+  'CANCELLED',
+]
