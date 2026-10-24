@@ -31,3 +31,9 @@ export async function findByName(name) {
   const { rows } = await pool.query('SELECT * FROM cooperatives WHERE lower(name) = lower($1)', [name])
   return toCoop(rows[0])
 }
+
+// The pilot runs on one cooperative: the oldest active one
+export async function findDefault() {
+  const { rows } = await pool.query('SELECT * FROM cooperatives WHERE active ORDER BY created_at LIMIT 1')
+  return toCoop(rows[0])
+}

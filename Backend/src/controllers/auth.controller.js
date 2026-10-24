@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { ROLES, USER_STATUS } from '../constants/roles.js'
 import { withTransaction } from '../db/pool.js'
 import * as cooperatives from '../repositories/cooperatives.js'
+import * as workers from '../repositories/workers.js'
 import * as refreshTokens from '../repositories/refreshTokens.js'
 import * as users from '../repositories/users.js'
 import { ApiError } from '../utils/ApiError.js'
@@ -23,20 +24,29 @@ export const register = asyncHandler(async (req, res) => {
 
   let cooperative = null
   if (role === ROLES.WORKER) {
-    cooperative = await cooperatives.findActiveById(cooperativeId)
+    // Single-cooperative pilot: no choice given means the default cooperative
+    cooperative = cooperativeId ? await cooperatives.findActiveById(cooperativeId) : await cooperatives.findDefault()
     if (!cooperative) throw ApiError.badRequest('Choose a valid cooperative')
   }
   if (await users.emailExists(email)) throw ApiError.conflict('An account with this email already exists')
 
-  const row = await users.create({
-    name,
-    email,
-    phone,
-    role,
-    passwordHash: await bcrypt.hash(password, BCRYPT_COST),
-    cooperativeId: cooperative?.id ?? null,
-    // A new worker waits for the cooperative to approve them
-    status: role === ROLES.WORKER ? USER_STATUS.PENDING : USER_STATUS.ACTIVE,
+  const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
+  const row = await withTransaction(async (client) => {
+    const created = await users.create(
+      {
+        name,
+        email,
+        phone,
+        role,
+        passwordHash,
+        cooperativeId: cooperative?.id ?? null,
+        // A new worker waits for the cooperative to approve them
+        status: role === ROLES.WORKER ? USER_STATUS.PENDING : USER_STATUS.ACTIVE,
+      },
+      client,
+    )
+    if (role === ROLES.WORKER) await workers.createEmptyProfile(created.id, client)
+    return created
   })
 
   const user = users.toPublicUser(row)

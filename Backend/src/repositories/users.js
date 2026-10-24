@@ -39,8 +39,8 @@ export async function emailExists(email) {
   return rowCount > 0
 }
 
-export async function create({ name, email, phone, role, passwordHash, status, cooperativeId, mustChangePassword = false }) {
-  const { rows } = await pool.query(
+export async function create({ name, email, phone, role, passwordHash, status, cooperativeId, mustChangePassword = false }, client) {
+  const { rows } = await run(client).query(
     `INSERT INTO users (name, email, phone, role, password_hash, status, cooperative_id, must_change_password)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,

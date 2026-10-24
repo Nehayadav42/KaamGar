@@ -1,13 +1,15 @@
 import bcrypt from 'bcryptjs'
 import { env } from '../config/env.js'
+import { AREAS } from '../constants/areas.js'
 import { ROLES, USER_STATUS } from '../constants/roles.js'
 import { closePool } from '../db/pool.js'
 import * as cooperatives from '../repositories/cooperatives.js'
+import * as services from '../repositories/services.js'
 import * as users from '../repositories/users.js'
 import { password as passwordRule } from '../validators/common.js'
 
-// Creates the first Platform Admin and the demo cooperative. Safe to run more than once.
-//   npm run seed
+// Creates the first Platform Admin, the pilot cooperative and its three starting services.
+// Safe to run more than once.   npm run seed
 if (!env.SEED_ADMIN_EMAIL || !env.SEED_ADMIN_PASSWORD) {
   console.error('Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env first')
   process.exit(1)
@@ -35,11 +37,33 @@ if (admin) {
 }
 
 const name = 'Bhopal Shramik Cooperative'
-if (await cooperatives.findByName(name)) {
+let coop = await cooperatives.findByName(name)
+if (coop) {
   console.log(`Cooperative already exists: ${name}`)
 } else {
-  await cooperatives.create({ name, area: 'Bhopal', createdBy: admin.id })
+  coop = await cooperatives.create({ name, area: 'Bhopal', createdBy: admin.id })
   console.log(`Created cooperative: ${name}`)
+}
+
+const starting = [
+  { name: 'Electrical repair', category: 'Electrical', description: 'Switches, sockets and everyday electrical faults.' },
+  { name: 'Plumbing repair', category: 'Plumbing', description: 'Leaking faucets, blocked drains and small plumbing repairs.' },
+  { name: 'Cleaning and maintenance', category: 'Cleaning & maintenance', description: 'Deep cleaning and routine care for your home or workplace.' },
+]
+const existing = new Set((await services.list({ cooperativeId: coop.id })).map((s) => s.name.toLowerCase()))
+for (const s of starting) {
+  if (existing.has(s.name.toLowerCase())) continue
+  const created = await services.create({
+    ...s,
+    cooperativeId: coop.id,
+    areas: AREAS,
+    requires: { details: true, address: true, schedule: true },
+    evidence: { before: true, after: true, notes: true },
+    createdBy: admin.id,
+  })
+  await services.setActive(created.id, true)
+  await services.addActivity(created.id, 'Seeded as an example service', admin.id)
+  console.log(`Created service: ${s.name}`)
 }
 
 await closePool()

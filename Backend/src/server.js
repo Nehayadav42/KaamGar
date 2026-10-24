@@ -3,12 +3,8 @@ import { env } from './config/env.js'
 import { closePool, connectDB } from './db/pool.js'
 import { purgeExpired } from './repositories/refreshTokens.js'
 
-// await connectDB()
-// const server = app.listen(env.PORT, () => console.log(`KaamGar API running on http://localhost:${env.PORT} (${env.NODE_ENV})`))
-
-const server = app.listen(env.PORT, () =>
-  console.log(`KaamGar API running on http://localhost:${env.PORT} (${env.NODE_ENV})`)
-)
+await connectDB()
+const server = app.listen(env.PORT, () => console.log(`KaamGar API running on http://localhost:${env.PORT} (${env.NODE_ENV})`))
 
 // Sweep expired refresh tokens at start-up and then every hour
 const sweep = () => purgeExpired().catch((e) => console.error('token sweep failed:', e.message))

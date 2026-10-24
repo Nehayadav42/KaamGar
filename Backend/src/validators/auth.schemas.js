@@ -14,9 +14,6 @@ export const registerSchema = z
   })
   .strict()
   .superRefine((data, ctx) => {
-    if (data.role === ROLES.WORKER && !data.cooperativeId) {
-      ctx.addIssue({ code: 'custom', path: ['cooperativeId'], message: 'Workers must choose a cooperative' })
-    }
     if (data.role === ROLES.CUSTOMER && data.cooperativeId) {
       ctx.addIssue({ code: 'custom', path: ['cooperativeId'], message: 'Customers do not belong to a cooperative' })
     }
