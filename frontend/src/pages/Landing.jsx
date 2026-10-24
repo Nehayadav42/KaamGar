@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import Navbar from '../components/landing/Navbar'
 import Hero from '../components/landing/Hero'
 import HowItWorks from '../components/landing/HowItWorks'
@@ -10,7 +11,8 @@ import Footer from '../components/landing/Footer'
 import RoleOverlay from '../components/RoleOverlay'
 
 export default function Landing() {
-  const [chooserOpen, setChooserOpen] = useState(false)
+  const location = useLocation()
+  const [chooserOpen, setChooserOpen] = useState(Boolean(location.state?.openChooser))
   const openChooser = useCallback(() => setChooserOpen(true), [])
   const closeChooser = useCallback(() => setChooserOpen(false), [])
 
