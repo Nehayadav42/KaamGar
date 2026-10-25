@@ -1,7 +1,8 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Logo from '../../components/ui/Logo'
-import { ORG } from '../../data/admin'
+import AccountMenu from '../../components/ui/AccountMenu'
+import { useCooperativeName } from '../../hooks/useCooperative'
 
 const tabs = [
   { to: '/admin', label: 'Overview', end: true },
@@ -14,6 +15,7 @@ const tabs = [
 // Shell for the Cooperative Admin space: top bar, tabs, animated page entrance.
 export default function AdminLayout() {
   const { pathname } = useLocation()
+  const coopName = useCooperativeName()
 
   return (
     <div className="min-h-screen bg-page text-ink">
@@ -23,21 +25,14 @@ export default function AdminLayout() {
             <Logo mark={false} />
             <span className="eyebrow text-[10px]">Cooperative admin</span>
             <span aria-hidden="true" className="hidden h-4 w-px bg-line sm:block" />
-            <span className="hidden text-[12px] text-muted sm:block">{ORG.name}</span>
+            <span className="hidden text-[12px] text-muted sm:block">{coopName}</span>
           </div>
-          {/* "Account" goes back to the start, where the role can be switched */}
-          <Link
-            to="/"
-            className="flex items-center gap-2 border-b border-transparent pb-0.5 text-[12.5px] font-medium hover:border-ink"
-          >
-            <span aria-hidden="true" className="text-[8px]">▶</span>
-            Account
-          </Link>
+          <AccountMenu />
         </div>
 
         <div className="border-y border-line/80">
           <div className="mx-auto flex max-w-[1240px] items-center justify-between px-5 sm:px-[60px]">
-          <nav className="flex gap-6 overflow-x-auto overflow-y-hidden [scrollbar-width:none] sm:gap-7 [&::-webkit-scrollbar]:hidden" aria-label="Cooperative admin">
+            <nav className="flex gap-6 overflow-x-auto overflow-y-hidden [scrollbar-width:none] sm:gap-7 [&::-webkit-scrollbar]:hidden" aria-label="Cooperative admin">
               {tabs.map((t) => (
                 <NavLink
                   key={t.to}
@@ -53,7 +48,7 @@ export default function AdminLayout() {
                     <>
                       {t.label}
                       {isActive && (
-                        <motion.span layoutId="admin-tab" className="absolute inset-x-0 -bottom-0 h-px bg-ink" />
+                        <motion.span layoutId="admin-tab" className="absolute inset-x-0 bottom-0 h-px bg-ink" />
                       )}
                     </>
                   )}

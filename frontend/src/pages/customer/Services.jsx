@@ -3,85 +3,81 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import PageHeading from './PageHeading'
 import Button from '../../components/ui/Button'
-import { services } from '../../data/content'
-import { useCatalogue } from '../../context/CatalogueContext'
-
+import ErrorNote from '../../components/ui/ErrorNote'
+import Spinner from '../../components/ui/Spinner'
+import { useAsync } from '../../hooks/useAsync'
+import { api } from '../../lib/api'
 
 const ease = [0.22, 1, 0.36, 1]
 
 export default function Services() {
   const navigate = useNavigate()
-const { activeServices: services } = useCatalogue()
-const [selected, setSelected] = useState(services[0]?.id ?? null)
-
-const next = () => selected && navigate('/customer/book', { state: { serviceId: selected } })
+  const { data, error, loading, reload } = useAsync(() => api.services.catalogue(), [])
+  const services = data?.services ?? []
+  const [picked, setPicked] = useState(null)
+  const selected = picked ?? services[0]?.id ?? null
 
   return (
     <>
       <PageHeading title="What can we help with?" />
       <p className="mt-10 max-w-[470px] text-[15px] leading-[1.7] text-muted">
-        Thoughtful help for everyday repairs and upkeep. Choose what you need; your cooperative handles
-        the allocation.
+        Thoughtful help for everyday repairs and upkeep. Choose what you need; your cooperative handles the allocation.
       </p>
 
-      <div role="radiogroup" aria-label="Choose a service" className="mt-12 border-t border-line">
-        {services.map((s, i) => {
-          const on = s.id === selected
-          return (
-            <motion.div
-              key={s.id}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease, delay: 0.15 + i * 0.08 }}
-              className="border-b border-line"
-            >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => setSelected(s.id)}
-                className={`relative grid w-full grid-cols-[36px_1fr_auto] items-start gap-x-4 px-3 py-7 text-left transition-colors sm:grid-cols-[44px_1fr_auto] ${
-                  on ? 'bg-white/55' : 'hover:bg-white/30'
-                }`}
-              >
-                {/* Animated selection outline that glides between rows */}
-                {on && (
-                  <motion.span
-                    layoutId="service-outline"
-                    className="pointer-events-none absolute inset-0 border border-ink"
-                    transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-                  />
-                )}
-                <span className="pt-2 text-[12px] text-faint">{String(i + 1).padStart(2, '0')}</span>
-                <span>
-                  <span className="block font-serif text-[28px] leading-tight tracking-[-0.01em]">{s.name}</span>
-                  <span className="mt-2 block text-[13.5px] text-muted">{s.desc}</span>
-                  <span className="mt-2.5 block text-[11px] text-faint">{s.areas.join(' · ')}</span>
-                </span>
-                <span
-                  aria-hidden="true"
-                  className={`mt-2 grid size-4 place-items-center rounded-full border transition-colors ${
-                    on ? 'border-ink' : 'border-ink/35'
-                  }`}
-                >
-                  <motion.span
-                    animate={{ scale: on ? 1 : 0 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                    className="size-2 rounded-full bg-ink"
-                  />
-                </span>
-              </button>
-            </motion.div>
-          )
-        })}
+      <div className="mt-12">
+        {loading && <Spinner label="Loading services" />}
+        {error && <ErrorNote error={error} onRetry={reload} />}
+        {!loading && !error && services.length === 0 && (
+          <p className="border-y border-line py-10 text-[14px] text-muted">No services are available right now. Please check back soon.</p>
+        )}
       </div>
 
-      <div className="mt-8 flex items-center justify-between gap-4">
-        <p className="text-[12px] text-muted">No payments in this pilot.</p>
-        <Button size="lg" onClick={next}>
-          Select service
-        </Button>
-      </div>
+      {services.length > 0 && (
+        <>
+          <div role="radiogroup" aria-label="Choose a service" className="border-t border-line">
+            {services.map((s, i) => {
+              const on = s.id === selected
+              return (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease, delay: 0.1 + i * 0.08 }}
+                  className="border-b border-line"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setPicked(s.id)}
+                    className={`relative grid w-full grid-cols-[36px_1fr_auto] items-start gap-x-4 px-3 py-7 text-left transition-colors sm:grid-cols-[44px_1fr_auto] ${on ? 'bg-white/55' : 'hover:bg-white/30'}`}
+                  >
+                    {on && (
+                      <motion.span layoutId="service-outline" className="pointer-events-none absolute inset-0 border border-ink" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />
+                    )}
+                    <span className="pt-2 text-[12px] text-faint">{String(i + 1).padStart(2, '0')}</span>
+                    <span>
+                      <span className="block font-serif text-[28px] leading-tight tracking-[-0.01em]">{s.name}</span>
+                      <span className="mt-2 block text-[13.5px] text-muted">{s.description}</span>
+                      <span className="mt-2.5 block text-[11px] text-faint">{s.areas.join(' · ')}</span>
+                    </span>
+                    <span aria-hidden="true" className={`mt-2 grid size-4 place-items-center rounded-full border transition-colors ${on ? 'border-ink' : 'border-ink/35'}`}>
+                      <motion.span animate={{ scale: on ? 1 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 28 }} className="size-2 rounded-full bg-ink" />
+                    </span>
+                  </button>
+                </motion.div>
+              )
+            })}
+          </div>
+
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <p className="text-[12px] text-muted">No payments in this pilot.</p>
+            <Button size="lg" onClick={() => navigate('/customer/book', { state: { serviceId: selected } })}>
+              Select service
+            </Button>
+          </div>
+        </>
+      )}
     </>
   )
 }

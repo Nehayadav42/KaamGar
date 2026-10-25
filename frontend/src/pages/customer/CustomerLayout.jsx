@@ -1,6 +1,7 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Logo from '../../components/ui/Logo'
+import AccountMenu from '../../components/ui/AccountMenu'
 
 const tabs = [
   { to: '/customer', label: 'Services', end: true },
@@ -18,15 +19,8 @@ export default function CustomerLayout() {
             <Logo mark={false} />
             <span className="eyebrow text-[10px]">Customer</span>
           </div>
-          <Link
-            to="/"
-            className="flex items-center gap-2 border-b border-transparent pb-0.5 text-[12.5px] font-medium hover:border-ink"
-          >
-            <span aria-hidden="true" className="text-[8px]">▶</span>
-            Account
-          </Link>
+          <AccountMenu />
         </div>
-
         <div className="border-y border-line/80">
           <div className="mx-auto flex max-w-[1240px] items-center justify-between px-5 sm:px-[60px]">
             <nav className="flex gap-7" aria-label="Customer">
@@ -36,20 +30,13 @@ export default function CustomerLayout() {
                   to={t.to}
                   end={t.end}
                   className={({ isActive }) =>
-                    `relative py-4 text-[13px] transition-colors ${
-                      isActive ? 'font-medium text-ink' : 'text-muted hover:text-ink'
-                    }`
+                    `relative py-4 text-[13px] transition-colors ${isActive ? 'font-medium text-ink' : 'text-muted hover:text-ink'}`
                   }
                 >
                   {({ isActive }) => (
                     <>
                       {t.label}
-                      {isActive && (
-                        <motion.span
-                          layoutId="customer-tab"
-                          className="absolute inset-x-0 -bottom-px h-px bg-ink"
-                        />
-                      )}
+                      {isActive && <motion.span layoutId="customer-tab" className="absolute inset-x-0 bottom-0 h-px bg-ink" />}
                     </>
                   )}
                 </NavLink>
@@ -60,7 +47,6 @@ export default function CustomerLayout() {
         </div>
       </header>
 
-      {/* Fades in on every route change. No exit animation, so it can't get stuck. */}
       <motion.main
         key={pathname}
         initial={{ opacity: 0, y: 14 }}

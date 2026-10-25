@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { DOORS, roleHome } from '../lib/constants'
 import { roles } from '../data/content'
 
 const ease = [0.22, 1, 0.36, 1]
@@ -14,6 +16,7 @@ const spots = {
 
 export default function RoleOverlay({ open, onClose }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [hovered, setHovered] = useState(null)
   const closeRef = useRef(null)
 
@@ -32,9 +35,11 @@ export default function RoleOverlay({ open, onClose }) {
     }
   }, [open, onClose])
 
+  // Already signed in as this kind of person -> straight to their space. Otherwise -> sign in / sign up.
   const choose = (role) => {
     onClose()
-    navigate(role.to)
+    if (user && DOORS[role.id].roles.includes(user.role)) navigate(roleHome(user.role))
+    else navigate(`/auth?role=${role.id}`)
   }
 
   return (
