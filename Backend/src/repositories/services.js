@@ -70,3 +70,15 @@ export async function countInCoop(ids, cooperativeId) {
   const { rows } = await pool.query('SELECT count(*)::int AS n FROM services WHERE cooperative_id = $1 AND id = ANY($2::uuid[])', [cooperativeId, ids])
   return rows[0].n
 }
+
+export async function countActiveInCoop(ids, cooperativeId) {
+  if (!ids.length) return 0
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM services WHERE cooperative_id = $1 AND active AND id = ANY($2::uuid[])', [cooperativeId, ids])
+  return rows[0].n
+}
+
+// Public list for the worker sign-up form: names only
+export async function listActiveNames(cooperativeId) {
+  const { rows } = await pool.query('SELECT id, name FROM services WHERE cooperative_id = $1 AND active ORDER BY name', [cooperativeId])
+  return rows
+}

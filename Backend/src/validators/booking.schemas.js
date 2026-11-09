@@ -24,7 +24,20 @@ export const confirmBookingSchema = z
 export const bookingIdParams = z.object({ id: uuid }).strict()
 
 export const listBookingsQuery = z
-  .object({ status: z.enum(BOOKING_STATUSES).optional(), ...pagination })
+  .object({
+    // one status, or several separated by commas: ?status=ASSIGNED,ACCEPTED
+    status: z
+      .string()
+      .regex(/^[A-Z_]+(,[A-Z_]+)*$/, 'Invalid status')
+      .transform((s) => s.split(','))
+      .pipe(z.array(z.enum(BOOKING_STATUSES)).min(1).max(7))
+      .optional(),
+    ...pagination,
+  })
   .strict()
 
 export const allocateSchema = z.object({ workerId: uuid }).strict()
+
+export const declineJobSchema = z
+  .object({ reason: z.string().trim().max(200).regex(/^[^<>]*$/, 'Reason contains invalid characters').optional() })
+  .strict()

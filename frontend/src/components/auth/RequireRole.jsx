@@ -19,7 +19,8 @@ export default function RequireRole({ roles, children }) {
 
   if (status === 'anonymous') {
     const door = roles.includes('customer') ? 'customer' : roles.includes('worker') ? 'worker' : 'owner'
-    return <Navigate to={`/auth?role=${door}`} state={{ from: location }} replace />
+    const to = roles.includes('platform_admin') ? '/platform/login' : `/auth?role=${door}`
+    return <Navigate to={to} state={{ from: location }} replace />
   }
 
   if (user.mustChangePassword && location.pathname !== '/account/password') {

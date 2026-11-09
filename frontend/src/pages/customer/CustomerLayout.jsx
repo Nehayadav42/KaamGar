@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Logo from '../../components/ui/Logo'
-import AccountMenu from '../../components/ui/AccountMenu'
+import HeaderActions from '../../components/ui/HeaderActions'
 
 const tabs = [
   { to: '/customer', label: 'Services', end: true },
@@ -19,7 +19,7 @@ export default function CustomerLayout() {
             <Logo mark={false} />
             <span className="eyebrow text-[10px]">Customer</span>
           </div>
-          <AccountMenu />
+          <HeaderActions />
         </div>
         <div className="border-y border-line/80">
           <div className="mx-auto flex max-w-[1240px] items-center justify-between px-5 sm:px-[60px]">

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { AREAS } from '../constants/areas.js'
-import { uuid } from './common.js'
+import { shramikCard, uuid } from './common.js'
 
 const noTags = /^[^<>]*$/
 
@@ -24,5 +24,6 @@ export const workerProfileBody = z
     availability: z.string().trim().min(1).max(60).regex(noTags),
     note: z.string().trim().max(120).regex(noTags).nullable().optional(),
     verified: z.boolean(),
+    shramikCardNumber: shramikCard.optional(),
   })
   .strict()

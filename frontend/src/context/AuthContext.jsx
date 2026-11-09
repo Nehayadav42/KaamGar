@@ -43,7 +43,8 @@ export function AuthProvider({ children }) {
     return data.user
   }, [])
 
-  const login = useCallback(async (email, password) => accept(await api.auth.login({ email, password })), [accept])
+  // door = which sign-in page was used; the server only lets each kind of account through its own door
+  const login = useCallback(async (email, password, door) => accept(await api.auth.login({ email, password, ...(door ? { door } : {}) })), [accept])
   const register = useCallback(async (body) => accept(await api.auth.register(body)), [accept])
 
   const logout = useCallback(async () => {
@@ -63,7 +64,8 @@ export function AuthProvider({ children }) {
     return user
   }, [])
 
-  const value = useMemo(() => ({ ...state, login, register, logout, refreshUser }), [state, login, register, logout, refreshUser])
+  // acceptSession: used after "set your password", which signs the person in
+  const value = useMemo(() => ({ ...state, login, register, logout, refreshUser, acceptSession: accept }), [state, login, register, logout, refreshUser, accept])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

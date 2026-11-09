@@ -9,9 +9,11 @@ import { validate } from '../middleware/validate.js'
 import { allocateSchema, bookingIdParams, listBookingsQuery } from '../validators/booking.schemas.js'
 import { serviceBody, serviceIdParams, workerProfileBody } from '../validators/service.schemas.js'
 import {
+  approveWorkerSchema,
   auditQuery,
   createCoopAdminSchema,
   createCooperativeSchema,
+  declineWorkerSchema,
   idParams,
   listUsersQuery,
   updateStatusSchema,
@@ -27,6 +29,10 @@ router.use(authenticate)
 router.post('/cooperatives', authorize(PLATFORM_ADMIN), validate({ body: createCooperativeSchema }), ctrl.createCooperative)
 router.get('/cooperatives', authorize(PLATFORM_ADMIN), ctrl.listCooperatives)
 router.post('/coop-admins', authorize(PLATFORM_ADMIN), validate({ body: createCoopAdminSchema }), ctrl.createCoopAdmin)
+router.get('/platform/overview', authorize(PLATFORM_ADMIN), ctrl.platformOverview)
+router.get('/coop-admins', authorize(PLATFORM_ADMIN), ctrl.listCoopAdmins)
+router.post('/coop-admins/:id/resend-invite', authorize(PLATFORM_ADMIN), validate({ params: idParams }), ctrl.resendInvite)
+router.post('/coop-admins/:id/reset-password', authorize(PLATFORM_ADMIN), validate({ params: idParams }), ctrl.resetCoopAdminPassword)
 router.get('/audit-logs', authorize(PLATFORM_ADMIN), validate({ query: auditQuery }), ctrl.listAuditLogs)
 
 // Platform admin (everyone) and cooperative admin (own workers only, enforced in the controller)
@@ -47,8 +53,11 @@ router.get('/bookings', staff, validate({ query: listBookingsQuery }), ops.listB
 router.get('/bookings/:id/eligible-workers', staff, validate({ params: bookingIdParams }), ops.eligibleWorkers)
 router.post('/bookings/:id/allocate', staff, validate({ params: bookingIdParams, body: allocateSchema }), ops.allocate)
 router.post('/bookings/:id/advance', staff, validate({ params: bookingIdParams }), ops.advance)
+router.post('/bookings/:id/unassign', staff, validate({ params: bookingIdParams }), ops.unassign)
 
 router.get('/workers', staff, ops.listWorkers)
+router.post('/workers/:id/approve', staff, validate({ params: serviceIdParams, body: approveWorkerSchema }), ops.approveWorker)
+router.post('/workers/:id/decline', staff, validate({ params: serviceIdParams, body: declineWorkerSchema }), ops.declineWorker)
 router.patch('/workers/:id/profile', staff, validate({ params: serviceIdParams, body: workerProfileBody }), ops.updateWorkerProfile)
 
 router.get('/services', staff, svc.listAdmin)
