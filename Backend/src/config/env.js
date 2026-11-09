@@ -13,6 +13,17 @@ const schema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  // Where the frontend lives. Used to build the links inside emails (never taken from the request).
+  APP_URL: z.string().url().default('http://localhost:5173'),
+  // Email (a Gmail account works: use an App Password, not your normal password)
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().int().positive().default(465),
+  SMTP_SECURE: z.enum(['true', 'false']).default('true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  // Development only: also return invite/reset links in API responses (handy for Postman). Ignored in production.
+  EXPOSE_DEV_LINKS: z.enum(['true', 'false']).default('false'),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(20),
   SEED_ADMIN_NAME: z.string().default('Platform Admin'),
@@ -27,8 +38,18 @@ if (!parsed.success) {
   process.exit(1)
 }
 
+const isProd = parsed.data.NODE_ENV === 'production'
+const mailConfigured = Boolean(parsed.data.SMTP_USER && parsed.data.SMTP_PASS)
+if (isProd && !mailConfigured) {
+  console.error('Invalid environment configuration:\n - SMTP_USER and SMTP_PASS are required in production (invitations are sent by email)')
+  process.exit(1)
+}
+
+console.log('CORS Origins:', parsed.data.CORS_ORIGINS);
 export const env = {
   ...parsed.data,
-  isProd: parsed.data.NODE_ENV === 'production',
+  isProd,
+  mailConfigured,
+  exposeDevLinks: parsed.data.EXPOSE_DEV_LINKS === 'true' && !isProd,
   corsOrigins: parsed.data.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
 }

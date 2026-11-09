@@ -18,6 +18,13 @@ export const listCatalogue = asyncHandler(async (_req, res) => {
   ok(res, { services: list.map(publicService) })
 })
 
+// GET /cooperatives/:id/services (public): the skills a new worker can choose from
+export const listForSignup = asyncHandler(async (req, res) => {
+  const coop = await cooperatives.findActiveById(req.params.id)
+  if (!coop) throw ApiError.notFound('Cooperative not found')
+  ok(res, { services: await services.listActiveNames(coop.id) })
+})
+
 // ── Admin ────────────────────────────────────────────────────────
 // Loads a service and hides it from admins of other cooperatives (404, not 403)
 async function loadManaged(req) {

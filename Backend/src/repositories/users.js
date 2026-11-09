@@ -14,6 +14,7 @@ export const toPublicUser = (r) =>
     status: r.status,
     cooperativeId: r.cooperative_id,
     mustChangePassword: r.must_change_password,
+    invitePending: r.invite_pending,
     lastLoginAt: r.last_login_at,
     passwordChangedAt: r.password_changed_at,
     createdAt: r.created_at,
@@ -39,12 +40,12 @@ export async function emailExists(email) {
   return rowCount > 0
 }
 
-export async function create({ name, email, phone, role, passwordHash, status, cooperativeId, mustChangePassword = false }, client) {
+export async function create({ name, email, phone, role, passwordHash, status, cooperativeId, mustChangePassword = false, invitePending = false }, client) {
   const { rows } = await run(client).query(
-    `INSERT INTO users (name, email, phone, role, password_hash, status, cooperative_id, must_change_password)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO users (name, email, phone, role, password_hash, status, cooperative_id, must_change_password, invite_pending)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [name, email, phone ?? null, role, passwordHash, status, cooperativeId ?? null, mustChangePassword],
+    [name, email, phone ?? null, role, passwordHash, status, cooperativeId ?? null, mustChangePassword, invitePending],
   )
   return rows[0]
 }
@@ -81,7 +82,7 @@ export const bumpTokenVersion = (id, client) =>
 export async function setPassword(id, passwordHash, client) {
   const { rows } = await run(client).query(
     `UPDATE users SET password_hash = $2, password_changed_at = now(), must_change_password = false,
-            token_version = token_version + 1
+            invite_pending = false, token_version = token_version + 1
      WHERE id = $1 RETURNING *`,
     [id, passwordHash],
   )
@@ -115,4 +116,24 @@ export async function list({ role, status, cooperativeId, search, limit, offset 
     pool.query(`SELECT count(*)::int AS total FROM users ${clause}`, params),
   ])
   return { users: data.rows.map(toPublicUser), total: count.rows[0].total }
+}
+
+// Cooperative admins with their cooperative's name (platform admin screen)
+export async function listCoopAdmins() {
+  const { rows } = await pool.query(
+    `SELECT u.*, c.name AS cooperative_name FROM users u
+     LEFT JOIN cooperatives c ON c.id = u.cooperative_id
+     WHERE u.role = 'coop_admin' ORDER BY u.created_at DESC`,
+  )
+  return rows.map((r) => ({ ...toPublicUser(r), cooperativeName: r.cooperative_name }))
+}
+
+// Who should be told about things happening in a cooperative / on the platform
+export async function adminIdsForCooperative(cooperativeId) {
+  const { rows } = await pool.query("SELECT id FROM users WHERE role = 'coop_admin' AND cooperative_id = $1 AND status = 'active' AND NOT invite_pending", [cooperativeId])
+  return rows.map((r) => r.id)
+}
+export async function platformAdminIds() {
+  const { rows } = await pool.query("SELECT id FROM users WHERE role = 'platform_admin' AND status = 'active'")
+  return rows.map((r) => r.id)
 }

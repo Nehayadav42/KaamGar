@@ -17,6 +17,7 @@ export default function Overview() {
 
   const { counts, attention } = data
   const items = [
+    ...attention.workersToApprove.map((w) => ({ w, to: '/admin/workers' })),
     ...attention.toAllocate.map((b) => ({ b, why: 'Needs a worker', to: '/admin/bookings' })),
     ...attention.toReview.map((b) => ({ b, why: 'Waiting for review', to: '/admin/review' })),
   ]
@@ -31,7 +32,7 @@ export default function Overview() {
       <AdminHeading
         eyebrow="A clear start to your day"
         title="Needs your attention"
-        lead={<p className="mt-8 text-[15px] text-muted">{plural(counts.toAllocate, 'booking')} to allocate, {counts.toReview} waiting for review</p>}
+        lead={<p className="mt-8 text-[15px] text-muted">{plural(counts.toAllocate, 'booking')} to allocate, {plural(counts.workersToApprove, 'worker')} to approve, {counts.toReview} waiting for review</p>}
       />
 
       <section className="mt-12 border-t border-line pt-10">
@@ -43,14 +44,14 @@ export default function Overview() {
           </motion.div>
         ) : (
           <ul>
-            {items.map(({ b, why, to }, i) => (
-              <motion.li key={`${b.id}-${why}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: i * 0.06 }} className="border-b border-line">
+            {items.map(({ b, w, why, to }, i) => (
+              <motion.li key={w ? `w-${w.id}` : `${b.id}-${why}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: i * 0.06 }} className="border-b border-line">
                 <Link to={to} className="group grid items-baseline gap-2 py-5 transition-colors hover:bg-white/35 sm:grid-cols-[1.4fr_1fr_auto] sm:px-2">
                   <span>
-                    <span className="block font-serif text-[24px] leading-tight">{b.service}</span>
-                    <span className="mt-1 block text-[12px] text-muted">{b.ref} · {b.address}</span>
+                    <span className="block font-serif text-[24px] leading-tight">{w ? w.name : b.service}</span>
+                    <span className="mt-1 block text-[12px] text-muted">{w ? `${w.phone} · ${w.skills.join(', ') || 'no skills chosen'}` : `${b.ref} · ${b.address}`}</span>
                   </span>
-                  <span className="text-[12.5px]">· {why}</span>
+                  <span className="text-[12.5px]">· {w ? 'New worker to approve' : why}</span>
                   <span className="border-b border-ink pb-0.5 text-[12.5px] font-medium transition-colors group-hover:border-rust group-hover:text-rust">Open →</span>
                 </Link>
               </motion.li>

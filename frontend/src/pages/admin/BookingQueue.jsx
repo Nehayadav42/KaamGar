@@ -13,7 +13,7 @@ const ease = [0.22, 1, 0.36, 1]
 const filters = [
   { id: 'ALL', label: 'All' },
   { id: 'PENDING', label: 'Pending' },
-  { id: 'ASSIGNED', label: 'Assigned' },
+  { id: 'ASSIGNED,ACCEPTED', label: 'Assigned' },
   { id: 'IN_PROGRESS', label: 'In progress' },
   { id: 'COMPLETED', label: 'Completed' },
 ]
@@ -93,11 +93,11 @@ export default function BookingQueue() {
   const shown = data?.bookings ?? []
   const current = filters.find((f) => f.id === filter)
 
-  const advance = async (b) => {
+  const run = async (b, fn) => {
     setMovingId(b.id)
     setActionError(null)
     try {
-      await api.admin.advance(b.id)
+      await fn()
       await reload({ silent: true })
     } catch (err) {
       setActionError(err)
@@ -106,10 +106,12 @@ export default function BookingQueue() {
     }
   }
 
-  const actionFor = (b) => {
-    if (b.status === 'PENDING') return { label: 'Allocate', run: () => setAllocating((id) => (id === b.id ? null : b.id)) }
-    if (b.status === 'ASSIGNED') return { label: 'Mark work started', run: () => advance(b) }
-    if (b.status === 'IN_PROGRESS') return { label: 'Mark completed', run: () => advance(b) }
+  // What the cooperative can do next, and what it is waiting for
+  const nextFor = (b) => {
+    if (b.status === 'PENDING') return { wait: null, primary: { label: 'Allocate', run: () => setAllocating((id) => (id === b.id ? null : b.id)) } }
+    if (b.status === 'ASSIGNED') return { wait: 'Waiting for the worker to accept', primary: { label: 'Mark accepted for the worker', run: () => run(b, () => api.admin.advance(b.id)) }, takeBack: true }
+    if (b.status === 'ACCEPTED') return { wait: 'Waiting for the worker to start', primary: { label: 'Mark started for the worker', run: () => run(b, () => api.admin.advance(b.id)) }, takeBack: true }
+    if (b.status === 'IN_PROGRESS') return { wait: 'Waiting for the worker to finish', primary: { label: 'Mark completed for the worker', run: () => run(b, () => api.admin.advance(b.id)) } }
     return null
   }
 
@@ -148,7 +150,7 @@ export default function BookingQueue() {
         {shown.length > 0 && (
           <ul className="border-t border-line">
             {shown.map((b, i) => {
-              const action = actionFor(b)
+              const next = nextFor(b)
               return (
                 <motion.li key={b.id} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease, delay: i * 0.05 }} className="border-b border-line">
                   <div className="grid gap-4 py-6 sm:grid-cols-[1.5fr_1fr_1fr_auto] sm:items-start sm:gap-6">
@@ -166,11 +168,17 @@ export default function BookingQueue() {
                       <p className="flex items-center gap-2 tracking-[0.04em]"><span aria-hidden="true" className="size-1 rounded-full bg-ink" />{statusLabel(b.status)}</p>
                       <p className="mt-1 text-muted">{b.worker ? b.worker.name : 'No worker yet'}</p>
                     </div>
-                    <div className="sm:text-right">
-                      {action ? (
-                        <button type="button" disabled={movingId === b.id} onClick={action.run} className="border-b border-ink pb-0.5 text-[12.5px] font-medium hover:border-rust hover:text-rust disabled:opacity-50">
-                          {movingId === b.id ? 'Working…' : `${action.label} →`}
-                        </button>
+                    <div className="text-[12.5px] sm:text-right">
+                      {next ? (
+                        <>
+                          {next.wait && <p className="text-muted">{next.wait}</p>}
+                          <button type="button" disabled={movingId === b.id} onClick={next.primary.run} className="mt-1 border-b border-ink pb-0.5 font-medium hover:border-rust hover:text-rust disabled:opacity-50">
+                            {movingId === b.id ? 'Working…' : `${next.primary.label} →`}
+                          </button>
+                          {next.takeBack && (
+                            <button type="button" disabled={movingId === b.id} onClick={() => run(b, () => api.admin.unassign(b.id))} className="ml-0 mt-2 block text-muted underline-offset-2 hover:text-rust hover:underline sm:ml-auto">Take back</button>
+                          )}
+                        </>
                       ) : (
                         <span className="text-[12px] text-muted">Closed by cooperative</span>
                       )}

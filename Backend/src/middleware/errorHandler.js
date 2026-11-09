@@ -25,6 +25,9 @@ export const errorHandler = (err, req, res, _next) => {
   } else if (err.code === '23514' || err.code === '22001' || err.code === '22P02') {
     // check constraint, value too long, invalid text representation
     status = 400; code = 'BAD_REQUEST'; message = 'Invalid value'
+  } else if ((err.code === '42P01' || err.code === '42703') && !env.isProd) {
+    // undefined table / column: the database is older than the code
+    message = 'The database is out of date. Run "npm run migrate" in the backend folder, then restart.'
   } else if (err.code === '57014') {
     status = 503; code = 'TIMEOUT'; message = 'The request took too long'
   }

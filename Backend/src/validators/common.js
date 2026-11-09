@@ -31,3 +31,11 @@ export const pagination = {
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 }
+
+export const dedupe = (a) => [...new Set(a)]
+
+// A worker's Shramik card number: 5 to 25 letters, digits, spaces or dashes
+export const shramikCard = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9 -]{4,24}$/, 'Enter your Shramik card number (5 to 25 letters or digits)')

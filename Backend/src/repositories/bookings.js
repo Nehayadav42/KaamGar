@@ -85,7 +85,7 @@ export async function findOne(id, scope, { withContact = false, withHistory = fa
 export async function list(scope, { status, verification, limit, offset }, { withContact = false } = {}) {
   const params = []
   const where = scopeSql(scope, params)
-  if (status) { params.push(status); where.push(`b.status = $${params.length}`) }
+  if (status?.length) { params.push(status); where.push(`b.status = ANY($${params.length}::booking_status[])`) }
   if (verification) { params.push(verification); where.push(`b.verification <> $${params.length}`) }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
   const [data, count] = await Promise.all([
@@ -106,6 +106,9 @@ export const countPendingForCustomer = async (customerId) =>
 
 export const allocate = (id, workerId, client) =>
   client.query("UPDATE bookings SET worker_id = $2, status = 'ASSIGNED' WHERE id = $1", [id, workerId])
+
+// Takes the worker off and puts the booking back in the queue
+export const unassign = (id, client) => client.query("UPDATE bookings SET worker_id = NULL, status = 'PENDING' WHERE id = $1", [id])
 
 export const setStatus = (id, status, client) => client.query('UPDATE bookings SET status = $2 WHERE id = $1', [id, status])
 

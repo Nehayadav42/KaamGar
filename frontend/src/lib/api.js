@@ -100,12 +100,19 @@ const patch = (path, body) => request(path, { method: 'PATCH', body })
 export const api = {
   auth: {
     register: (body) => request('/auth/register', { method: 'POST', body, auth: false }),
+    // door = which sign-in page was used ('customer' | 'worker' | 'owner' | 'platform')
     login: (body) => request('/auth/login', { method: 'POST', body, auth: false }),
     logout: () => request('/auth/logout', { method: 'POST', auth: false }),
     me: () => get('/auth/me'),
     changePassword: (body) => patch('/auth/change-password', body),
+    checkSetupToken: (token) => request('/auth/setup-token/check', { method: 'POST', body: { token }, auth: false }),
+    setPassword: (token, password) => request('/auth/set-password', { method: 'POST', body: { token, password }, auth: false }),
+    forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email }, auth: false }),
   },
-  cooperatives: { list: () => request('/cooperatives', { auth: false }) },
+  cooperatives: {
+    list: () => request('/cooperatives', { auth: false }),
+    services: (id) => request(`/cooperatives/${id}/services`, { auth: false }),
+  },
   services: { catalogue: () => get('/services') },
   bookings: {
     create: (body) => post('/bookings', body),
@@ -113,14 +120,30 @@ export const api = {
     get: (id) => get(`/bookings/${id}`),
     confirm: (id, body = {}) => post(`/bookings/${id}/confirm`, body),
   },
+  notifications: {
+    list: (params) => get(`/notifications${qs(params)}`),
+    read: (id) => post(`/notifications/${id}/read`),
+    readAll: () => post('/notifications/read-all'),
+  },
+  worker: {
+    profile: () => get('/worker/profile'),
+    jobs: (params) => get(`/worker/jobs${qs(params)}`),
+    accept: (id) => post(`/worker/jobs/${id}/accept`),
+    start: (id) => post(`/worker/jobs/${id}/start`),
+    finish: (id) => post(`/worker/jobs/${id}/finish`),
+    decline: (id, reason) => post(`/worker/jobs/${id}/decline`, reason ? { reason } : {}),
+  },
   admin: {
     overview: () => get('/admin/overview'),
     bookings: (params) => get(`/admin/bookings${qs(params)}`),
     eligibleWorkers: (id) => get(`/admin/bookings/${id}/eligible-workers`),
     allocate: (id, workerId) => post(`/admin/bookings/${id}/allocate`, { workerId }),
     advance: (id) => post(`/admin/bookings/${id}/advance`),
+    unassign: (id) => post(`/admin/bookings/${id}/unassign`),
     workers: () => get('/admin/workers'),
     updateWorkerProfile: (id, body) => patch(`/admin/workers/${id}/profile`, body),
+    approveWorker: (id, body) => post(`/admin/workers/${id}/approve`, body),
+    declineWorker: (id, reason) => post(`/admin/workers/${id}/decline`, { reason }),
     setUserStatus: (id, status) => patch(`/admin/users/${id}/status`, { status }),
     services: {
       list: () => get('/admin/services'),
@@ -130,5 +153,18 @@ export const api = {
       activate: (id) => post(`/admin/services/${id}/activate`),
       deactivate: (id) => post(`/admin/services/${id}/deactivate`),
     },
+    // platform admin only
+    platformOverview: () => get('/admin/platform/overview'),
+    coopAdmins: {
+      list: () => get('/admin/coop-admins'),
+      invite: (body) => post('/admin/coop-admins', body),
+      resendInvite: (id) => post(`/admin/coop-admins/${id}/resend-invite`),
+      resetPassword: (id) => post(`/admin/coop-admins/${id}/reset-password`),
+    },
+    cooperatives: {
+      list: () => get('/admin/cooperatives'),
+      create: (body) => post('/admin/cooperatives', body),
+    },
+    auditLogs: (params) => get(`/admin/audit-logs${qs(params)}`),
   },
 }

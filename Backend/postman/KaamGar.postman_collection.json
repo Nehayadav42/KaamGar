@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "KaamGar API",
-    "description": "Authentication, role-based access and cooperative management.\n\nRun the folders in order (or use the Collection Runner). Edit the Variables tab if your host, admin email or admin password differ.",
+    "description": "Authentication, roles, invitations, workers, bookings and notifications.\n\nSetup: run `npm run setup` in the backend, and put EXPOSE_DEV_LINKS=true in the backend .env (development only) so invitation links are also returned here.\nRun the folders in order, or use the Collection Runner. Edit the Variables tab if your host or admin details differ.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -10,7 +10,6 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// A fresh id per run keeps the test emails unique",
           "if (!pm.collectionVariables.get('runId')) { pm.collectionVariables.set('runId', Date.now().toString()); }"
         ]
       }
@@ -47,18 +46,6 @@
     },
     {
       "key": "runId",
-      "value": ""
-    },
-    {
-      "key": "serviceId",
-      "value": ""
-    },
-    {
-      "key": "bookingId",
-      "value": ""
-    },
-    {
-      "key": "newServiceId",
       "value": ""
     }
   ],
@@ -99,11 +86,10 @@
       ]
     },
     {
-      "name": "1. Setup (Platform Admin)",
-      "description": "Log in as the seeded Platform Admin and create a cooperative + a Cooperative Admin.",
+      "name": "1. Setup: platform admin invites a cooperative admin",
       "item": [
         {
-          "name": "Login: Platform Admin",
+          "name": "Platform admin signs in (platform door)",
           "request": {
             "method": "POST",
             "header": [
@@ -124,7 +110,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"door\": \"platform\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -142,8 +128,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "const d = pm.response.json().data;",
-                  "pm.test('Has access token and role platform_admin', function () { pm.expect(d.accessToken).to.be.a('string'); pm.expect(d.user.role).to.eql('platform_admin'); });",
+                  "pm.test(\"Role is platform_admin\", function () { pm.expect(pm.response.json().data.user.role === 'platform_admin').to.eql(true); });",
                   "pm.collectionVariables.set('platformToken', pm.response.json().data.accessToken);"
                 ]
               }
@@ -175,8 +160,6 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "const list = pm.response.json().data.cooperatives;",
-                  "pm.test('At least one cooperative', function () { pm.expect(list.length).to.be.above(0); });",
                   "pm.collectionVariables.set('cooperativeId', pm.response.json().data.cooperatives[0].id);"
                 ]
               }
@@ -184,7 +167,42 @@
           ]
         },
         {
-          "name": "Create another cooperative (Platform Admin)",
+          "name": "Skills a new worker can choose (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cooperatives/{{cooperativeId}}/services",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cooperatives",
+                "{{cooperativeId}}",
+                "services"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Only id and name are exposed\", function () { pm.expect(pm.response.json().data.services.every(s => Object.keys(s).length === 2)).to.eql(true); });",
+                  "pm.collectionVariables.set('serviceId', pm.response.json().data.services.find(s => s.name.startsWith('Cleaning')).id);",
+                  "pm.collectionVariables.set('plumbingId', pm.response.json().data.services.find(s => s.name.startsWith('Plumbing')).id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a second cooperative",
           "request": {
             "method": "POST",
             "header": [
@@ -237,7 +255,7 @@
           ]
         },
         {
-          "name": "Create Cooperative Admin (Platform Admin)",
+          "name": "SHOULD FAIL: invite with a password (platform admin never sets passwords)",
           "request": {
             "method": "POST",
             "header": [
@@ -258,7 +276,59 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Ayesha Admin\",\n  \"email\": \"coopadmin.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
+              "raw": "{\n  \"name\": \"Ayesha Owner\",\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invite a cooperative admin (email with a set-password link)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/coop-admins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "coop-admins"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ayesha Owner\",\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"phone\": \"9811111111\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -283,8 +353,581 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "pm.test('mustChangePassword is true', function () { pm.expect(pm.response.json().data.user.mustChangePassword).to.eql(true); });",
-                  "pm.collectionVariables.set('coopAdminId', pm.response.json().data.user.id);"
+                  "pm.test(\"Invitation pending\", function () { pm.expect(pm.response.json().data.user.invitePending === true).to.eql(true); });",
+                  "pm.collectionVariables.set('coopAdminId', pm.response.json().data.user.id);",
+                  "const link = pm.response.json().data.devLink;",
+                  "pm.test('Dev link is present (set EXPOSE_DEV_LINKS=true in the backend .env)', function () { pm.expect(link).to.be.a('string'); });",
+                  "pm.collectionVariables.set('inviteToken', link.split('token=')[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: invite the same email again",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/coop-admins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "coop-admins"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dup\",\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: the invited person cannot sign in before accepting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check the invitation link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/setup-token/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "setup-token",
+                "check"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Purpose is invite\", function () { pm.expect(pm.response.json().data.purpose === 'invite').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: weak password on the invitation page",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/set-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "set-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\",\n  \"password\": \"weak\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cooperative admin sets their password (accepts the invitation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/set-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "set-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Signed in as coop_admin\", function () { pm.expect(pm.response.json().data.user.role === 'coop_admin').to.eql(true); });",
+                  "pm.collectionVariables.set('coopAdminToken', pm.response.json().data.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: the link cannot be used twice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/set-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "set-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invite a cooperative admin for the OTHER cooperative",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/coop-admins",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "coop-admins"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Other Owner\",\n  \"email\": \"owner2.{{runId}}@kaamgar.test\",\n  \"cooperativeId\": \"{{otherCooperativeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "const link = pm.response.json().data.devLink;",
+                  "pm.test('Dev link is present (set EXPOSE_DEV_LINKS=true in the backend .env)', function () { pm.expect(link).to.be.a('string'); });",
+                  "pm.collectionVariables.set('inviteToken2', link.split('token=')[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The other cooperative admin sets their password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/set-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "set-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken2}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('coopBAdminToken', pm.response.json().data.accessToken);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Needs EXPOSE_DEV_LINKS=true in the backend .env so the invitation link is also returned here (development only)."
+    },
+    {
+      "name": "2. Sign-in doors",
+      "item": [
+        {
+          "name": "SHOULD FAIL: platform admin at the Cooperative Owner door",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"door\": \"owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Same message as a wrong password\", function () { pm.expect(pm.response.json().error.message === 'Invalid email or password').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: platform admin at the customer door",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"door\": \"customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: cooperative admin at the platform door",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"platform\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cooperative admin at the owner door",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('coopAdminToken', pm.response.json().data.accessToken);"
                 ]
               }
             }
@@ -293,11 +936,10 @@
       ]
     },
     {
-      "name": "2. Register",
-      "description": "Public sign-up. Only customer and worker are allowed. The 'should fail' requests prove that.",
+      "name": "3. Register",
       "item": [
         {
-          "name": "Register Customer",
+          "name": "Register a customer (few details)",
           "request": {
             "method": "POST",
             "header": [
@@ -336,7 +978,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "pm.test('Role is customer and active', function () { const u = pm.response.json().data.user; pm.expect(u.role).to.eql('customer'); pm.expect(u.status).to.eql('active'); });",
+                  "pm.test(\"Customer, active\", function () { pm.expect(pm.response.json().data.user.role === 'customer' && pm.response.json().data.user.status === 'active').to.eql(true); });",
                   "pm.collectionVariables.set('customerId', pm.response.json().data.user.id);",
                   "pm.collectionVariables.set('customerToken', pm.response.json().data.accessToken);"
                 ]
@@ -345,7 +987,7 @@
           ]
         },
         {
-          "name": "Register Worker (joins a cooperative, starts as pending)",
+          "name": "Register a worker (phone, Shramik card, skills, areas, cooperative)",
           "request": {
             "method": "POST",
             "header": [
@@ -366,7 +1008,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Imran Worker\",\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
+              "raw": "{\n  \"name\": \"Vansh Worker\",\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"phone\": \"9822222222\",\n  \"cooperativeId\": \"{{cooperativeId}}\",\n  \"shramikCardNumber\": \"SH-{{runId}}\",\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -384,7 +1026,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "pm.test('Worker is pending', function () { pm.expect(pm.response.json().data.user.status).to.eql('pending'); });",
+                  "pm.test(\"Pending, in the chosen cooperative\", function () { pm.expect(pm.response.json().data.user.status === 'pending' && pm.response.json().data.user.cooperativeId === pm.collectionVariables.get('cooperativeId')).to.eql(true); });",
                   "pm.collectionVariables.set('workerId', pm.response.json().data.user.id);",
                   "pm.collectionVariables.set('workerToken', pm.response.json().data.accessToken);"
                 ]
@@ -393,7 +1035,7 @@
           ]
         },
         {
-          "name": "Register Worker in the OTHER cooperative",
+          "name": "Register a second worker (for the decline test)",
           "request": {
             "method": "POST",
             "header": [
@@ -414,7 +1056,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Other Coop Worker\",\n  \"email\": \"worker2.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"cooperativeId\": \"{{otherCooperativeId}}\"\n}",
+              "raw": "{\n  \"name\": \"Decline Me\",\n  \"email\": \"worker2.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"phone\": \"9822222222\",\n  \"cooperativeId\": \"{{cooperativeId}}\",\n  \"shramikCardNumber\": \"SH-{{runId}}B\",\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -460,7 +1102,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"attacker1.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"platform_admin\"\n}",
+              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"a1.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"platform_admin\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -505,7 +1147,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"attacker2.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"coop_admin\"\n}",
+              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"a2.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"coop_admin\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -550,7 +1192,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"attacker3.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"isAdmin\": true\n}",
+              "raw": "{\n  \"name\": \"Attacker\",\n  \"email\": \"a3.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"isAdmin\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -619,7 +1261,7 @@
           ]
         },
         {
-          "name": "Register Worker without choosing a cooperative (joins the pilot cooperative)",
+          "name": "SHOULD FAIL: worker without a Shramik card",
           "request": {
             "method": "POST",
             "header": [
@@ -640,7 +1282,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Default Coop Worker\",\n  \"email\": \"worker3.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\"\n}",
+              "raw": "{\n  \"name\": \"No Card\",\n  \"email\": \"nc.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"phone\": \"9822222222\",\n  \"cooperativeId\": \"{{cooperativeId}}\",\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -657,8 +1299,142 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "pm.test('Pending, in the pilot cooperative', function () { const u = pm.response.json().data.user; pm.expect(u.status).to.eql('pending'); pm.expect(u.cooperativeId).to.eql(pm.collectionVariables.get('cooperativeId')); });"
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: worker without skills",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"No Skills\",\n  \"email\": \"ns.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"phone\": \"9822222222\",\n  \"cooperativeId\": \"{{cooperativeId}}\",\n  \"shramikCardNumber\": \"SH-{{runId}}C\",\n  \"serviceIds\": [],\n  \"areas\": [\n    \"Arera Colony\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: customer sending worker-only fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cust\",\n  \"email\": \"cw.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"shramikCardNumber\": \"SH-12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: same Shramik card again (spacing/case ignored)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Copycat\",\n  \"email\": \"cc.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"role\": \"worker\",\n  \"phone\": \"9822222222\",\n  \"cooperativeId\": \"{{cooperativeId}}\",\n  \"shramikCardNumber\": \"sh-{{runId}}\",\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
                 ]
               }
             }
@@ -712,11 +1488,10 @@
       ]
     },
     {
-      "name": "3. Login",
-      "description": "Logs in each role and stores its token. Customer is last so the refresh cookie in the next folder belongs to the customer.",
+      "name": "4. Login and session",
       "item": [
         {
-          "name": "Login: Worker",
+          "name": "Worker signs in (still pending)",
           "request": {
             "method": "POST",
             "header": [
@@ -737,7 +1512,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"worker\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -755,6 +1530,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Pending\", function () { pm.expect(pm.response.json().data.user.status === 'pending').to.eql(true); });",
                   "pm.collectionVariables.set('workerToken', pm.response.json().data.accessToken);"
                 ]
               }
@@ -762,7 +1538,7 @@
           ]
         },
         {
-          "name": "Login: Cooperative Admin",
+          "name": "Customer signs in",
           "request": {
             "method": "POST",
             "header": [
@@ -783,7 +1559,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"coopadmin.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "raw": "{\n  \"email\": \"customer.{{runId}}@kaamgar.test\",\n  \"password\": \"{{customerPassword}}\",\n  \"door\": \"customer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -801,54 +1577,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Role is coop_admin', function () { pm.expect(pm.response.json().data.user.role).to.eql('coop_admin'); });",
-                  "pm.collectionVariables.set('coopAdminToken', pm.response.json().data.accessToken);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Login: Customer",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"customer.{{runId}}@kaamgar.test\",\n  \"password\": \"{{customerPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Refresh cookie was set (HttpOnly)', function () { pm.expect(pm.response.headers.get('Set-Cookie')).to.include('HttpOnly'); });",
+                  "pm.test(\"Refresh cookie is HttpOnly\", function () { pm.expect(pm.response.headers.get('Set-Cookie').includes('HttpOnly')).to.eql(true); });",
                   "pm.collectionVariables.set('customerToken', pm.response.json().data.accessToken);"
                 ]
               }
@@ -901,7 +1630,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: unknown email (same message as wrong password)",
+          "name": "SHOULD FAIL: unknown email (same message)",
           "request": {
             "method": "POST",
             "header": [
@@ -940,14 +1669,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 401', function () { pm.response.to.have.status(401); });",
-                  "pm.test('Message does not reveal whether the email exists', function () { pm.expect(pm.response.json().error.message).to.eql('Invalid email or password'); });"
+                  "pm.test(\"No account hint\", function () { pm.expect(pm.response.json().error.message === 'Invalid email or password').to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: NoSQL/JSON injection in email",
+          "name": "SHOULD FAIL: JSON injection in email",
           "request": {
             "method": "POST",
             "header": [
@@ -990,15 +1719,9 @@
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "4. Session (cookie-based refresh)",
-      "description": "Postman keeps the httpOnly refresh cookie in its cookie jar for localhost. The jar holds ONE refresh cookie per host, so run these straight after 'Login: Customer'.",
-      "item": [
+        },
         {
-          "name": "Who am I (me)",
+          "name": "Who am I",
           "request": {
             "method": "GET",
             "header": [],
@@ -1030,14 +1753,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Returns the customer', function () { pm.expect(pm.response.json().data.user.role).to.eql('customer'); });"
+                  "pm.test(\"Customer\", function () { pm.expect(pm.response.json().data.user.role === 'customer').to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Refresh access token (rotates the cookie)",
+          "name": "Refresh the access token (cookie)",
           "request": {
             "method": "POST",
             "header": [],
@@ -1062,7 +1785,6 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('New access token issued', function () { pm.expect(pm.response.json().data.accessToken).to.be.a('string'); });",
                   "pm.collectionVariables.set('customerToken', pm.response.json().data.accessToken);"
                 ]
               }
@@ -1070,7 +1792,7 @@
           ]
         },
         {
-          "name": "Logout (this device)",
+          "name": "Logout",
           "request": {
             "method": "POST",
             "header": [],
@@ -1132,7 +1854,7 @@
           ]
         },
         {
-          "name": "Change password (customer)",
+          "name": "Change password",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1178,7 +1900,6 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('New token returned', function () { pm.expect(pm.response.json().data.accessToken).to.be.a('string'); });",
                   "pm.collectionVariables.set('customerToken', pm.response.json().data.accessToken);",
                   "pm.collectionVariables.set('customerPassword', pm.collectionVariables.get('newCustomerPassword'));"
                 ]
@@ -1187,7 +1908,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: change password with wrong current password",
+          "name": "SHOULD FAIL: change password with a wrong current one",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1239,7 +1960,7 @@
           ]
         },
         {
-          "name": "Logout everywhere (all devices)",
+          "name": "Log out everywhere",
           "request": {
             "method": "POST",
             "header": [],
@@ -1277,7 +1998,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: old access token after logout-all",
+          "name": "SHOULD FAIL: old token after logout-all",
           "request": {
             "method": "GET",
             "header": [],
@@ -1315,7 +2036,7 @@
           ]
         },
         {
-          "name": "Login: Customer again (new password)",
+          "name": "Customer signs in again",
           "request": {
             "method": "POST",
             "header": [
@@ -1336,7 +2057,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"customer.{{runId}}@kaamgar.test\",\n  \"password\": \"{{customerPassword}}\"\n}",
+              "raw": "{\n  \"email\": \"customer.{{runId}}@kaamgar.test\",\n  \"password\": \"{{customerPassword}}\",\n  \"door\": \"customer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1360,11 +2081,11 @@
             }
           ]
         }
-      ]
+      ],
+      "description": "Postman keeps ONE refresh cookie per host. These requests are ordered so the cookie always belongs to the right person."
     },
     {
       "name": "5. Role matrix (4 roles x 4 protected endpoints)",
-      "description": "Every role calls every protected endpoint. Only the matching role may succeed. /probe/* exists only when NODE_ENV is not production.",
       "item": [
         {
           "name": "customer calls /probe/customer  (expect 200)",
@@ -1977,27 +2698,21 @@
       ]
     },
     {
-      "name": "6. User management & cooperative scoping",
+      "name": "6. Platform admin: manage cooperative admins",
       "item": [
         {
-          "name": "Platform Admin: list ALL users",
+          "name": "List cooperative admins",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/users?limit=50",
+              "raw": "{{baseUrl}}/admin/coop-admins",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "users"
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "50"
-                }
+                "coop-admins"
               ]
             },
             "auth": {
@@ -2018,31 +2733,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Sees several roles', function () { const roles = new Set(pm.response.json().data.users.map(u => u.role)); pm.expect(roles.size).to.be.above(1); });"
+                  "pm.test(\"Shows the joined admin with their cooperative\", function () { pm.expect(pm.response.json().data.admins.some(a => a.id === pm.collectionVariables.get('coopAdminId') && a.invitePending === false && a.cooperativeName)).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Platform Admin: filter workers",
+          "name": "Platform overview",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/users?role=worker",
+              "raw": "{{baseUrl}}/admin/platform/overview",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "users"
-              ],
-              "query": [
-                {
-                  "key": "role",
-                  "value": "worker"
-                }
+                "platform",
+                "overview"
               ]
             },
             "auth": {
@@ -2063,25 +2773,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Only workers', function () { pm.expect(pm.response.json().data.users.every(u => u.role === 'worker')).to.eql(true); });"
+                  "pm.test(\"Counts and recent events\", function () { pm.expect(pm.response.json().data.counts.cooperatives >= 2 && Array.isArray(pm.response.json().data.recent)).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Coop Admin: list users (only own cooperative's workers)",
+          "name": "SHOULD FAIL: cooperative admin opens the platform overview",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/users",
+              "raw": "{{baseUrl}}/admin/platform/overview",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "users"
+                "platform",
+                "overview"
               ]
             },
             "auth": {
@@ -2090,262 +2801,6 @@
                 {
                   "key": "token",
                   "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Only workers of my cooperative', function () { const us = pm.response.json().data.users; pm.expect(us.length).to.be.above(0); pm.expect(us.every(u => u.role === 'worker' && u.cooperativeId === pm.collectionVariables.get('cooperativeId'))).to.eql(true); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Coop Admin: approve my worker",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{workerId}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"active\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Worker is now active', function () { pm.expect(pm.response.json().data.user.status).to.eql('active'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: Coop Admin approves a worker of ANOTHER cooperative (404)",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{worker2Id}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{worker2Id}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"active\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: Coop Admin touches a customer (404)",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{customerId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{customerId}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"suspended\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: mass-assign role through status endpoint",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{workerId}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"platform_admin\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{platformToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: Customer lists users",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users"
-              ]
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{customerToken}}",
                   "type": "string"
                 }
               ]
@@ -2364,45 +2819,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: Worker lists users",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users"
-              ]
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{workerToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: Coop Admin creates a cooperative",
+          "name": "SHOULD FAIL: cooperative admin invites someone",
           "request": {
             "method": "POST",
             "header": [
@@ -2412,18 +2829,18 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/admin/cooperatives",
+              "raw": "{{baseUrl}}/admin/coop-admins",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "cooperatives"
+                "coop-admins"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Sneaky Cooperative\"\n}",
+              "raw": "{\n  \"name\": \"Sneaky\",\n  \"email\": \"sn.{{runId}}@kaamgar.test\",\n  \"cooperativeId\": \"{{cooperativeId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2454,7 +2871,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: Coop Admin reads audit log",
+          "name": "SHOULD FAIL: cooperative admin reads the audit log",
           "request": {
             "method": "GET",
             "header": [],
@@ -2492,22 +2909,31 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: no token at all",
+          "name": "SHOULD FAIL: resend invitation to someone who already joined",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/users",
+              "raw": "{{baseUrl}}/admin/coop-admins/{{coopAdminId}}/resend-invite",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "users"
+                "coop-admins",
+                "{{coopAdminId}}",
+                "resend-invite"
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -2516,31 +2942,27 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: SQL injection in search returns nothing",
+          "name": "Send a password-reset link to a cooperative admin",
           "request": {
-            "method": "GET",
+            "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/users?search=' OR 1=1 --",
+              "raw": "{{baseUrl}}/admin/coop-admins/{{coopAdminId}}/reset-password",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "users"
-              ],
-              "query": [
-                {
-                  "key": "search",
-                  "value": "' OR 1=1 --"
-                }
+                "coop-admins",
+                "{{coopAdminId}}",
+                "reset-password"
               ]
             },
             "auth": {
@@ -2561,19 +2983,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('No users matched', function () { pm.expect(pm.response.json().data.total).to.eql(0); });"
+                  "const link = pm.response.json().data.devLink;",
+                  "pm.test('Dev link is present (set EXPOSE_DEV_LINKS=true in the backend .env)', function () { pm.expect(link).to.be.a('string'); });",
+                  "pm.collectionVariables.set('resetToken', link.split('token=')[1]);"
                 ]
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "7. Suspension cuts access instantly",
-      "item": [
+        },
         {
-          "name": "Worker logs in",
+          "name": "The reset link sets a new password and signs them in",
           "request": {
             "method": "POST",
             "header": [
@@ -2583,18 +3002,18 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/login",
+              "raw": "{{baseUrl}}/auth/set-password",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "auth",
-                "login"
+                "set-password"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"password\": \"{{testPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2612,292 +3031,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.collectionVariables.set('workerToken', pm.response.json().data.accessToken);"
+                  "pm.collectionVariables.set('coopAdminToken', pm.response.json().data.accessToken);"
                 ]
               }
             }
           ]
         },
-        {
-          "name": "Worker can use the worker endpoint",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/probe/worker",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "probe",
-                "worker"
-              ]
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{workerToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Coop Admin suspends the worker",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{workerId}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"suspended\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: the worker's existing token is dead at once",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/probe/worker",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "probe",
-                "worker"
-              ]
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{workerToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is one of [401, 403]', function () { pm.expect([401, 403]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "SHOULD FAIL: suspended worker cannot log in",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Coop Admin re-activates the worker",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{workerId}}",
-                "status"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"active\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Worker logs in again (a new session after re-activation)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.collectionVariables.set('workerToken', pm.response.json().data.accessToken);"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "8. Audit log (Platform Admin)",
-      "item": [
         {
           "name": "Recent audit events",
           "request": {
@@ -2937,31 +3076,30 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Has events', function () { pm.expect(pm.response.json().data.logs.length).to.be.above(0); });"
+                  "pm.test(\"Has events\", function () { pm.expect(pm.response.json().data.logs.length > 0).to.eql(true); });"
                 ]
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "7. Cooperative admin reviews workers",
+      "item": [
         {
-          "name": "Only USER_STATUS_CHANGED events",
+          "name": "Workers list (with phone, card, skills, areas)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/audit-logs?action=USER_STATUS_CHANGED",
+              "raw": "{{baseUrl}}/admin/workers",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "audit-logs"
-              ],
-              "query": [
-                {
-                  "key": "action",
-                  "value": "USER_STATUS_CHANGED"
-                }
+                "workers"
               ]
             },
             "auth": {
@@ -2969,7 +3107,587 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{platformToken}}",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Sees the pending worker's details\", function () { pm.expect((function(){const w=pm.response.json().data.workers.find(x=>x.id===pm.collectionVariables.get('workerId')); return w && w.status==='pending' && w.phone && w.shramikCardNumber && w.skills.length>0 && w.areas.length>0})()).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Overview counts workers waiting",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/overview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "overview"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"workersToApprove > 0\", function () { pm.expect(pm.response.json().data.counts.workersToApprove > 0).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cooperative admin was notified about the new worker",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"worker.pending notification\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'worker.pending')).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: customer lists workers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: the worker approves themselves",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{workerId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ],\n  \"availability\": \"Available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: the other cooperative's admin cannot see this worker (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{workerId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ],\n  \"availability\": \"Available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopBAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: approve with no skills",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{workerId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceIds\": [],\n  \"areas\": [\n    \"Arera Colony\"\n  ],\n  \"availability\": \"Available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve the worker (after checking and editing details)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{workerId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceIds\": [\n    \"{{serviceId}}\",\n    \"{{plumbingId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\",\n    \"MP Nagar\"\n  ],\n  \"availability\": \"Available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Active and Cooperative-reviewed\", function () { pm.expect(pm.response.json().data.worker.status === 'active' && pm.response.json().data.worker.verified === true && pm.response.json().data.worker.skills.length === 2).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: approve twice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{workerId}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\"\n  ],\n  \"availability\": \"Available\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker signs in as an approved worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"worker\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Active\", function () { pm.expect(pm.response.json().data.user.status === 'active').to.eql(true); });",
+                  "pm.collectionVariables.set('workerToken', pm.response.json().data.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker was notified of the approval",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"account.approved\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'account.approved')).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: decline without a reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{worker2Id}}/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{worker2Id}}",
+                "decline"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Decline the second worker with a reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/workers/{{worker2Id}}/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "workers",
+                "{{worker2Id}}",
+                "decline"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Card photo is unclear\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
                   "type": "string"
                 }
               ]
@@ -2986,15 +3704,60 @@
               }
             }
           ]
+        },
+        {
+          "name": "The declined worker sees the reason when signing in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"worker2.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"worker\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Reason is shown\", function () { pm.expect(pm.response.json().error.message.includes('Card photo is unclear')).to.eql(true); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "9. Services and booking (customer)",
-      "description": "The customer's side of a booking. Uses the services created by `npm run seed`.",
+      "name": "8. Customer: services and booking",
       "item": [
         {
-          "name": "Service catalogue (active services only)",
+          "name": "Service catalogue (active only)",
           "request": {
             "method": "GET",
             "header": [],
@@ -3025,9 +3788,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "const list = pm.response.json().data.services;",
-                  "pm.test('Has services and hides internal fields', function () { pm.expect(list.length).to.be.above(0); pm.expect(list[0]).to.not.have.property('evidence'); });",
-                  "pm.collectionVariables.set('serviceId', pm.response.json().data.services.find(s => s.name === 'Cleaning and maintenance').id);"
+                  "pm.test(\"Internal fields hidden\", function () { pm.expect(!('evidence' in pm.response.json().data.services[0])).to.eql(true); });"
                 ]
               }
             }
@@ -3080,7 +3841,7 @@
           ]
         },
         {
-          "name": "Create booking",
+          "name": "Create a booking",
           "request": {
             "method": "POST",
             "header": [
@@ -3125,8 +3886,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "const b = pm.response.json().data.booking;",
-                  "pm.test('Pending, with ref and first timeline event', function () { pm.expect(b.status).to.eql('PENDING'); pm.expect(b.ref).to.match(/^KG-\\d+$/); pm.expect(b.history.length).to.eql(1); });",
+                  "pm.test(\"Pending with ref and one timeline event\", function () { pm.expect((function(){const b=pm.response.json().data.booking; return b.status==='PENDING' && /^KG-\\d+$/.test(b.ref) && b.history.length===1})()).to.eql(true); });",
                   "pm.collectionVariables.set('bookingId', pm.response.json().data.booking.id);"
                 ]
               }
@@ -3287,7 +4047,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: worker tries to create a booking",
+          "name": "SHOULD FAIL: a worker creates a booking",
           "request": {
             "method": "POST",
             "header": [
@@ -3338,6 +4098,44 @@
           ]
         },
         {
+          "name": "Customer was notified",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"booking.received\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'booking.received')).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "My bookings",
           "request": {
             "method": "GET",
@@ -3369,14 +4167,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Contains my booking', function () { pm.expect(pm.response.json().data.bookings.some(b => b.id === pm.collectionVariables.get('bookingId'))).to.eql(true); });"
+                  "pm.test(\"Contains my booking\", function () { pm.expect(pm.response.json().data.bookings.some(b => b.id === pm.collectionVariables.get('bookingId'))).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Open one booking (with timeline)",
+          "name": "Open one booking",
           "request": {
             "method": "GET",
             "header": [],
@@ -3507,77 +4305,20 @@
       ]
     },
     {
-      "name": "10. Cooperative operations (Coop Admin)",
-      "description": "Give the worker a skill, allocate, move the job along, and the customer confirms.",
+      "name": "9. Allocation and the worker's job",
       "item": [
         {
-          "name": "Give the worker the Cleaning skill",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/admin/workers/{{workerId}}/profile",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "admin",
-                "workers",
-                "{{workerId}}",
-                "profile"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"serviceIds\": [\n    \"{{serviceId}}\"\n  ],\n  \"areas\": [\n    \"Arera Colony\",\n    \"MP Nagar\"\n  ],\n  \"availability\": \"Available\",\n  \"note\": null,\n  \"verified\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{coopAdminToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Skill saved', function () { pm.expect(pm.response.json().data.worker.skills).to.include('Cleaning and maintenance'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Overview (counts + attention list)",
+          "name": "Cooperative admin was notified of the booking",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/overview",
+              "raw": "{{baseUrl}}/notifications",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "admin",
-                "overview"
+                "notifications"
               ]
             },
             "auth": {
@@ -3598,7 +4339,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('One or more to allocate', function () { pm.expect(pm.response.json().data.counts.toAllocate).to.be.above(0); });"
+                  "pm.test(\"booking.new\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'booking.new')).to.eql(true); });"
                 ]
               }
             }
@@ -3643,14 +4384,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Contains the new booking, with contact', function () { const b = pm.response.json().data.bookings.find(x => x.id === pm.collectionVariables.get('bookingId')); pm.expect(b).to.exist; pm.expect(b.contact).to.be.a('string'); });"
+                  "pm.test(\"Contains it, with the customer's contact\", function () { pm.expect((function(){const b=pm.response.json().data.bookings.find(x=>x.id===pm.collectionVariables.get('bookingId')); return b && typeof b.contact==='string'})()).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Eligible workers for the booking",
+          "name": "Eligible workers",
           "request": {
             "method": "GET",
             "header": [],
@@ -3684,14 +4425,54 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Our worker is eligible', function () { pm.expect(pm.response.json().data.workers.some(w => w.id === pm.collectionVariables.get('workerId'))).to.eql(true); });"
+                  "pm.test(\"The approved worker is offered\", function () { pm.expect(pm.response.json().data.workers.some(w => w.id === pm.collectionVariables.get('workerId'))).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: Customer tries to allocate",
+          "name": "SHOULD FAIL: the other cooperative's admin opens the queue item (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/eligible-workers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "bookings",
+                "{{bookingId}}",
+                "eligible-workers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopBAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: customer tries to allocate",
           "request": {
             "method": "POST",
             "header": [
@@ -3847,14 +4628,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('ASSIGNED', function () { pm.expect(pm.response.json().data.booking.status).to.eql('ASSIGNED'); });"
+                  "pm.test(\"ASSIGNED\", function () { pm.expect(pm.response.json().data.booking.status === 'ASSIGNED').to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: allocate again (409)",
+          "name": "SHOULD FAIL: allocate again",
           "request": {
             "method": "POST",
             "header": [
@@ -3908,18 +4689,17 @@
           ]
         },
         {
-          "name": "Assigned worker opens the booking",
+          "name": "Worker was notified of the new job",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/bookings/{{bookingId}}",
+              "raw": "{{baseUrl}}/notifications",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "bookings",
-                "{{bookingId}}"
+                "notifications"
               ]
             },
             "auth": {
@@ -3939,80 +4719,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"job.offered\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'job.offered')).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: the other customer cannot confirm",
+          "name": "Worker's jobs (customer phone hidden until accepted)",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/bookings/{{bookingId}}/confirm",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "bookings",
-                "{{bookingId}}",
-                "confirm"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{customer2Token}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Advance: start work",
-          "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/advance",
+              "raw": "{{baseUrl}}/worker/jobs",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "admin",
-                "bookings",
-                "{{bookingId}}",
-                "advance"
+                "worker",
+                "jobs"
               ]
             },
             "auth": {
@@ -4020,7 +4746,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{coopAdminToken}}",
+                  "value": "{{workerToken}}",
                   "type": "string"
                 }
               ]
@@ -4033,27 +4759,25 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('IN_PROGRESS', function () { pm.expect(pm.response.json().data.booking.status).to.eql('IN_PROGRESS'); });"
+                  "pm.test(\"Job listed, no contact\", function () { pm.expect((function(){const j=pm.response.json().data.jobs.find(x=>x.id===pm.collectionVariables.get('bookingId')); return j && j.status==='ASSIGNED' && !('contact' in j)})()).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Advance: complete work",
+          "name": "SHOULD FAIL: customer opens /worker/jobs",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/advance",
+              "raw": "{{baseUrl}}/worker/jobs",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "admin",
-                "bookings",
-                "{{bookingId}}",
-                "advance"
+                "worker",
+                "jobs"
               ]
             },
             "auth": {
@@ -4061,7 +4785,87 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{coopAdminToken}}",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: start before accepting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{bookingId}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{bookingId}}",
+                "start"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker accepts: \"I'm taking this\"",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{bookingId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{bookingId}}",
+                "accept"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
                   "type": "string"
                 }
               ]
@@ -4074,7 +4878,167 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('COMPLETED, awaiting review', function () { const b = pm.response.json().data.booking; pm.expect(b.status).to.eql('COMPLETED'); pm.expect(b.verification).to.eql('AWAITING_REVIEW'); });"
+                  "pm.test(\"ACCEPTED, phone now visible\", function () { pm.expect(pm.response.json().data.job.status === 'ACCEPTED' && pm.response.json().data.job.contact === '9876543210').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: accept twice",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{bookingId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{bookingId}}",
+                "accept"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker starts",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{bookingId}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{bookingId}}",
+                "start"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"IN_PROGRESS\", function () { pm.expect(pm.response.json().data.job.status === 'IN_PROGRESS').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker finishes",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{bookingId}}/finish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{bookingId}}",
+                "finish"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"COMPLETED, awaiting review\", function () { pm.expect(pm.response.json().data.job.status === 'COMPLETED' && pm.response.json().data.job.verification === 'AWAITING_REVIEW').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer was told the work is complete",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"booking.completed\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'booking.completed')).to.eql(true); });"
                 ]
               }
             }
@@ -4128,14 +5092,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('CONFIRMED with rating', function () { const b = pm.response.json().data.booking; pm.expect(b.confirmation).to.eql('CONFIRMED'); pm.expect(b.review.rating).to.eql(5); });"
+                  "pm.test(\"CONFIRMED with rating\", function () { pm.expect(pm.response.json().data.booking.confirmation === 'CONFIRMED' && pm.response.json().data.booking.review.rating === 5).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "SHOULD FAIL: confirm twice (409)",
+          "name": "SHOULD FAIL: confirm twice",
           "request": {
             "method": "POST",
             "header": [
@@ -4188,19 +5152,125 @@
           ]
         },
         {
-          "name": "Workers list (skills, areas, status)",
+          "name": "Worker is told it is confirmed (without the rating)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/admin/workers",
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"job.confirmed, no rating\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.type === 'job.confirmed' && !/5/.test(n.body))).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a second booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bookings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{serviceId}}\",\n  \"details\": \"Kitchen deep cleaning\",\n  \"address\": \"E-7/42, Arera Colony, Bhopal\",\n  \"date\": \"2030-01-15\",\n  \"time\": \"10:30\",\n  \"contact\": \"9876543210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('booking2Id', pm.response.json().data.booking.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allocate it to the worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/bookings/{{booking2Id}}/allocate",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "admin",
-                "workers"
+                "bookings",
+                "{{booking2Id}}",
+                "allocate"
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workerId\": \"{{workerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "auth": {
               "type": "bearer",
@@ -4224,11 +5294,553 @@
               }
             }
           ]
+        },
+        {
+          "name": "Worker declines the job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs/{{booking2Id}}/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs",
+                "{{booking2Id}}",
+                "decline"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"I am travelling\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The booking is back in the queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/{{booking2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bookings",
+                "{{booking2Id}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"PENDING, no worker\", function () { pm.expect(pm.response.json().data.booking.status === 'PENDING' && pm.response.json().data.booking.worker === null).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allocate again, then the admin takes it back",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/bookings/{{booking2Id}}/allocate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "bookings",
+                "{{booking2Id}}",
+                "allocate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workerId\": \"{{workerId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin takes the job back",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/bookings/{{booking2Id}}/unassign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "bookings",
+                "{{booking2Id}}",
+                "unassign"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"PENDING\", function () { pm.expect(pm.response.json().data.booking.status === 'PENDING').to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Overview after the work",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/overview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "overview"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Counts present\", function () { pm.expect('toAllocate' in pm.response.json().data.counts).to.eql(true); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "11. Manage services (Coop Admin)",
+      "name": "10. Notifications",
+      "item": [
+        {
+          "name": "My notifications (with unread count)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Unread count > 0\", function () { pm.expect(pm.response.json().data.unreadCount > 0).to.eql(true); });",
+                  "pm.collectionVariables.set('notificationId', pm.response.json().data.notifications[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: no token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Someone else cannot mark my notification read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer2Token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "...it is still unread for me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?unread=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "unread",
+                  "value": "1"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Still listed\", function () { pm.expect(pm.response.json().data.notifications.some(n => n.id === pm.collectionVariables.get('notificationId'))).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark my own as read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark all as read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unread count is now 0",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Zero\", function () { pm.expect(pm.response.json().data.unreadCount === 0).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: limit above 50",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11. Manage services (cooperative admin)",
       "item": [
         {
           "name": "List services",
@@ -4315,7 +5927,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
-                  "pm.test('Inactive', function () { pm.expect(pm.response.json().data.service.active).to.eql(false); });",
+                  "pm.test(\"Inactive\", function () { pm.expect(pm.response.json().data.service.active === false).to.eql(true); });",
                   "pm.collectionVariables.set('newServiceId', pm.response.json().data.service.id);"
                 ]
               }
@@ -4323,7 +5935,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: duplicate name (409)",
+          "name": "SHOULD FAIL: duplicate name",
           "request": {
             "method": "POST",
             "header": [
@@ -4375,7 +5987,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: create it already active (extra field)",
+          "name": "SHOULD FAIL: create it already active",
           "request": {
             "method": "POST",
             "header": [
@@ -4560,7 +6172,7 @@
           ]
         },
         {
-          "name": "Customer now sees it in the catalogue",
+          "name": "Customer sees it in the catalogue",
           "request": {
             "method": "GET",
             "header": [],
@@ -4591,17 +6203,22 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Visible', function () { pm.expect(pm.response.json().data.services.some(s => s.id === pm.collectionVariables.get('newServiceId'))).to.eql(true); });"
+                  "pm.test(\"Visible\", function () { pm.expect(pm.response.json().data.services.some(s => s.id === pm.collectionVariables.get('newServiceId'))).to.eql(true); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Service with its activity log",
+          "name": "SHOULD FAIL: the other cooperative's admin edits it (404)",
           "request": {
-            "method": "GET",
-            "header": [],
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/admin/services/{{newServiceId}}",
               "host": [
@@ -4613,12 +6230,21 @@
                 "{{newServiceId}}"
               ]
             },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Faucet repair {{runId}}\",\n  \"category\": \"Plumbing\",\n  \"description\": \"Fix dripping faucets.\",\n  \"areas\": [],\n  \"requires\": {\n    \"details\": true,\n    \"address\": true,\n    \"schedule\": true\n  },\n  \"evidence\": {\n    \"before\": true,\n    \"after\": true,\n    \"notes\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{coopAdminToken}}",
+                  "value": "{{coopBAdminToken}}",
                   "type": "string"
                 }
               ]
@@ -4630,8 +6256,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Log has entries', function () { pm.expect(pm.response.json().data.service.activity.length).to.be.above(1); });"
+                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });"
                 ]
               }
             }
@@ -4678,7 +6303,7 @@
           ]
         },
         {
-          "name": "SHOULD FAIL: Customer manages services",
+          "name": "SHOULD FAIL: customer manages services",
           "request": {
             "method": "GET",
             "header": [],
@@ -4710,6 +6335,348 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12. Forgot password and suspension",
+      "item": [
+        {
+          "name": "Forgot password: unknown email (generic answer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nobody.{{runId}}@kaamgar.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set('genericMsg', pm.response.json().data.message);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot password: known email (identical answer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer.{{runId}}@kaamgar.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Same message, so nobody can learn which emails exist\", function () { pm.expect(pm.response.json().data.message === pm.collectionVariables.get('genericMsg')).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cooperative admin suspends the worker",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{workerId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"suspended\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: the worker's existing token is dead at once",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worker/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "worker",
+                "jobs"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is one of [401, 403]', function () { pm.expect([401, 403]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: suspended worker cannot sign in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"worker.{{runId}}@kaamgar.test\",\n  \"password\": \"{{testPassword}}\",\n  \"door\": \"worker\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cooperative admin re-activates the worker",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{workerId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{coopAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SHOULD FAIL: mass-assign a role through the status endpoint",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{workerId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{workerId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"platform_admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{platformToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.response.to.have.status(400); });"
                 ]
               }
             }

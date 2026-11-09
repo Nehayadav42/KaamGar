@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Logo from '../../components/ui/Logo'
-import AccountMenu from '../../components/ui/AccountMenu'
+import HeaderActions from '../../components/ui/HeaderActions'
 import { useCooperativeName } from '../../hooks/useCooperative'
 
 const tabs = [
@@ -27,7 +27,7 @@ export default function AdminLayout() {
             <span aria-hidden="true" className="hidden h-4 w-px bg-line sm:block" />
             <span className="hidden text-[12px] text-muted sm:block">{coopName}</span>
           </div>
-          <AccountMenu />
+          <HeaderActions />
         </div>
 
         <div className="border-y border-line/80">

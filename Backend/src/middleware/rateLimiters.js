@@ -18,3 +18,6 @@ export const authLimiter = make(env.RATE_LIMIT_AUTH_MAX)
 export const loginLimiter = make(env.RATE_LIMIT_AUTH_MAX, { skipSuccessfulRequests: true })
 // Per logged-in user (use after `authenticate`): stops a customer flooding the queue
 export const createLimiter = make(60, { keyGenerator: (req) => req.user?.id ?? 'anonymous' })
+
+// Endpoints that send an email: few per IP, so nobody can use us to flood an inbox
+export const emailLimiter = make(5)

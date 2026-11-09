@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { audit } from '../utils/audit.js'
 import { todayIST } from '../utils/dates.js'
+import { notify, notifyCoopAdmins } from '../utils/notify.js'
 
 const ok = (res, data, status = 200) => res.status(status).json({ success: true, data })
 const MAX_PENDING_PER_CUSTOMER = 10
@@ -48,6 +49,8 @@ export const createBooking = asyncHandler(async (req, res) => {
   )
   await audit(req, 'BOOKING_CREATED', { targetType: 'Booking', targetId: id })
   const booking = await bookings.findOne(id, { customerId: req.user.id }, { withContact: true, withHistory: true })
+  await notify(req.user.id, { type: 'booking.received', title: 'We received your booking', body: `${booking.ref} · ${booking.service}. The cooperative will assign a worker.`, link: `/customer/bookings/${id}` })
+  await notifyCoopAdmins(service.cooperativeId, { type: 'booking.new', title: 'New booking', body: `${booking.ref} · ${booking.service} needs a worker.`, link: '/admin/bookings' })
   ok(res, { booking }, 201)
 })
 
@@ -62,6 +65,8 @@ export const listMine = asyncHandler(async (req, res) => {
 export const getBooking = asyncHandler(async (req, res) => {
   const booking = await bookings.findOne(req.params.id, scopeFor(req.user), { withContact: true, withHistory: true })
   if (!booking) throw ApiError.notFound('Booking not found')
+  // A worker gets the customer's phone number only after accepting the job
+  if (req.user.role === ROLES.WORKER && booking.status === 'ASSIGNED') delete booking.contact
   ok(res, { booking })
 })
 
@@ -78,5 +83,8 @@ export const confirmCompletion = asyncHandler(async (req, res) => {
   })
   await audit(req, 'BOOKING_CONFIRMED', { targetType: 'Booking', targetId: req.params.id, meta: { rated: Boolean(rating) } })
   const booking = await bookings.findOne(req.params.id, { customerId: req.user.id }, { withContact: true, withHistory: true })
+  // The customer's rating is theirs; the worker is only told the job is confirmed
+  await notify(booking.worker?.id, { type: 'job.confirmed', title: 'The customer confirmed the job', body: `${booking.ref} · ${booking.service} is marked complete.`, link: '/worker' })
+  await notifyCoopAdmins(booking.cooperativeId, { type: 'booking.confirmed', title: 'Customer confirmed', body: `${booking.ref} · ${booking.service} was confirmed by the customer.`, link: '/admin/bookings' })
   ok(res, { booking })
 })

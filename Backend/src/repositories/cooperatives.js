@@ -37,3 +37,8 @@ export async function findDefault() {
   const { rows } = await pool.query('SELECT * FROM cooperatives WHERE active ORDER BY created_at LIMIT 1')
   return toCoop(rows[0])
 }
+
+export async function findById(id) {
+  const { rows } = await pool.query('SELECT * FROM cooperatives WHERE id = $1', [id])
+  return toCoop(rows[0])
+}

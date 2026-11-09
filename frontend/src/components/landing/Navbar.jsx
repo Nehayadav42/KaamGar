@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, useMotionValueEvent, useScroll } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import Logo from '../ui/Logo'
 import Button from '../ui/Button'
 
@@ -43,9 +44,14 @@ export default function Navbar({ onChooseRole }) {
           ))}
         </ul>
 
-        <Button onClick={onChooseRole} className="h-10 px-5">
-          Choose your role
-        </Button>
+        <div className="flex items-center gap-5">
+          <Link to="/platform/login" className="hidden text-[12px] text-muted transition-colors hover:text-rust sm:block">
+            Platform admin
+          </Link>
+          <Button onClick={onChooseRole} className="h-10 px-5">
+            Choose your role
+          </Button>
+        </div>
       </nav>
     </motion.header>
   )

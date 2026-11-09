@@ -10,11 +10,13 @@ export const ROLE_LABEL = {
 
 // Where each role lands after signing in
 export const roleHome = (role) =>
-  ({ customer: '/customer', worker: '/worker', coop_admin: '/admin', platform_admin: '/admin' })[role] ?? '/'
+  ({ customer: '/customer', worker: '/worker', coop_admin: '/admin', platform_admin: '/platform' })[role] ?? '/'
 
-// The three doors in the role chooser, and which real roles may use each
+// The sign-in doors, and which real roles may use each one.
+// The first three are in the role chooser. "platform" has its own page: /platform/login.
 export const DOORS = {
   customer: { label: 'Customer', roles: ['customer'], canRegister: true },
   worker: { label: 'Worker', roles: ['worker'], canRegister: true },
-  owner: { label: 'Cooperative Owner', roles: ['coop_admin', 'platform_admin'], canRegister: false },
+  owner: { label: 'Cooperative Owner', roles: ['coop_admin'], canRegister: false },
+  platform: { label: 'Platform Admin', roles: ['platform_admin'], canRegister: false },
 }
